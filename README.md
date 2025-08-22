@@ -2,6 +2,10 @@
 
 Este proyecto es un dashboard web para monitorear sistemas de cadena de frío utilizando React, TypeScript y comunicación MQTT.
 
+## 🌐 Demo en Vivo
+
+Puedes ver la aplicación funcionando en: **https://fri0ric0cajamarca.netlify.app/**
+
 ## Configuración de Variables de Entorno
 
 Antes de ejecutar la aplicación, debes configurar las variables de entorno. Copia el archivo `.env.example` a `.env` y configura los valores según tu entorno:
