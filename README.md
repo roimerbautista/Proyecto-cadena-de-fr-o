@@ -69,8 +69,6 @@ npm run build
 ## Seguridad
 
 ⚠️ **IMPORTANTE**: 
-- Nunca subas el archivo `.env` a tu repositorio de GitHub
-- El archivo `.env` está incluido en `.gitignore` para evitar que se suba accidentalmente
 - Usa valores seguros para las credenciales de administrador
 - Cambia las credenciales por defecto antes de desplegar en producción
 
