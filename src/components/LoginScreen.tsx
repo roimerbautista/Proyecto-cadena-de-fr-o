@@ -28,13 +28,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, error }) => {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">
-            Frio Rico Cajamarca
+            {import.meta.env.VITE_APP_NAME || 'Sistema de Monitoreo'}
           </h1>
           <h2 className="text-2xl font-semibold text-blue-200 mb-2">
             Sistema de Cadena de Frío
           </h2>
           <p className="text-blue-100 text-sm">
-            Panel de Control v2.0
+            Panel de Control v{import.meta.env.VITE_APP_VERSION || '1.0'}
           </p>
         </div>
 
@@ -79,10 +79,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, error }) => {
         </form>
 
         <div className="mt-6 text-center text-blue-200 text-xs">
-          <p>Credenciales: admin / password</p>
-          <p className="mt-2">Desarrollado para Frio Rico Cajamarca</p>
+          <p className="mt-2">Desarrollado para {import.meta.env.VITE_COMPANY_NAME || 'Tu Empresa'}</p>
           <p className="mt-1">Monitoreo de Cadena de Frío para Productos Lácteos</p>
-          <p className="mt-3 text-blue-300 font-semibold">© 2025 Frio Rico Cajamarca</p>
+          <p className="mt-3 text-blue-300 font-semibold">© 2025 {import.meta.env.VITE_COMPANY_NAME || 'Tu Empresa'}</p>
         </div>
       </div>
     </div>

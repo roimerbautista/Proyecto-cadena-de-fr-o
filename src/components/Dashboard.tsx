@@ -92,8 +92,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
   // Cargar valores guardados de localStorage al inicializar
   useEffect(() => {
-    const savedTempMin = localStorage.getItem('cadena-frio-temp-min');
-    const savedTempMax = localStorage.getItem('cadena-frio-temp-max');
+    const storagePrefix = import.meta.env.VITE_MQTT_TOPIC_PREFIX || 'cadena-frio';
+    const savedTempMin = localStorage.getItem(`${storagePrefix}-temp-min`);
+    const savedTempMax = localStorage.getItem(`${storagePrefix}-temp-max`);
     
     if (savedTempMin) {
       setNewTempMin(savedTempMin);
@@ -123,8 +124,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   // Función para obtener datos de ThingSpeak
   const fetchThingSpeakData = useCallback(async () => {
     try {
+      const apiKey = import.meta.env.VITE_THINGSPEAK_API_KEY;
+      const channelId = import.meta.env.VITE_THINGSPEAK_CHANNEL_ID;
+      
+      if (!apiKey || !channelId) {
+        console.error('ThingSpeak API key o Channel ID no configurados');
+        addLog('error', 'Configuración de ThingSpeak incompleta');
+        return;
+      }
+      
       const response = await fetch(
-        'https://api.thingspeak.com/channels/3005089/feeds.json?api_key=EX1M36C7IBIIOV17&results=1'
+        `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&results=1`
       );
       const data = await response.json();
       
@@ -155,12 +165,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
   useEffect(() => {
     // Conectar a MQTT con opciones de reconexión mejoradas
-    const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
-      reconnectPeriod: 5000,      // Intentar reconectar cada 5 segundos
-      connectTimeout: 30000,      // Tiempo de espera de conexión de 30 segundos
-      keepalive: 60,              // Mantener viva la conexión
+    const mqttBrokerUrl = import.meta.env.VITE_MQTT_BROKER_URL || 'wss://broker.hivemq.com:8884/mqtt';
+    const reconnectPeriod = parseInt(import.meta.env.VITE_MQTT_RECONNECT_PERIOD) || 5000;
+    const connectTimeout = parseInt(import.meta.env.VITE_MQTT_CONNECT_TIMEOUT) || 30000;
+    const keepalive = parseInt(import.meta.env.VITE_MQTT_KEEPALIVE) || 60;
+    
+    const client = mqtt.connect(mqttBrokerUrl, {
+      reconnectPeriod,      // Intentar reconectar cada 5 segundos
+      connectTimeout,      // Tiempo de espera de conexión de 30 segundos
+      keepalive,              // Mantener viva la conexión
       clean: true,                // Sesión limpia
-      clientId: `cadena-frio-dashboard-${Math.random().toString(16).substring(2, 10)}` // ID de cliente único
+      clientId: `${import.meta.env.VITE_MQTT_TOPIC_PREFIX || 'cadena-frio'}-dashboard-${Math.random().toString(16).substring(2, 10)}` // ID de cliente único
     });
     
     let isFirstConnect = true;
@@ -178,10 +193,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       
       // Suscribirse a todos los tópicos relevantes
       const topics = [
-        'cadena-frio/temperatura',
-        'cadena-frio/humedad',
-        'cadena-frio/estado',
-        'cadena-frio/alertas'
+        import.meta.env.VITE_MQTT_TOPIC_TEMPERATURA || 'cadena-frio/temperatura',
+        import.meta.env.VITE_MQTT_TOPIC_HUMEDAD || 'cadena-frio/humedad',
+        import.meta.env.VITE_MQTT_TOPIC_ESTADO || 'cadena-frio/estado',
+        `${import.meta.env.VITE_MQTT_TOPIC_PREFIX || 'cadena-frio'}/alertas`
       ];
       
       topics.forEach(topic => {
@@ -189,7 +204,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       });
       
       // Solicitar estado inicial solo después de suscribirse a todos los tópicos
-      client.publish('cadena-frio/control/sistema', 'STATUS', { qos: 1 as 0 | 1 | 2, retain: false });
+      const controlTopic = import.meta.env.VITE_MQTT_TOPIC_CONTROL_SISTEMA || 'cadena-frio/control/sistema';
+      client.publish(controlTopic, 'STATUS', { qos: 1 as 0 | 1 | 2, retain: false });
     });
 
     client.on('reconnect', () => {
@@ -252,8 +268,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       // Registrar el mensaje en la consola
       addLog('info', `${topic}: ${messageStr}`);
 
+      const temperaturaTopic = import.meta.env.VITE_MQTT_TOPIC_TEMPERATURA || 'cadena-frio/temperatura';
+      const humedadTopic = import.meta.env.VITE_MQTT_TOPIC_HUMEDAD || 'cadena-frio/humedad';
+      const estadoTopic = import.meta.env.VITE_MQTT_TOPIC_ESTADO || 'cadena-frio/estado';
+      const alertasTopic = `${import.meta.env.VITE_MQTT_TOPIC_PREFIX || 'cadena-frio'}/alertas`;
+      
       switch (topic) {
-        case 'cadena-frio/temperatura': {
+        case temperaturaTopic: {
           const tempValue = parseFloat(messageStr);
           if (!isNaN(tempValue)) {
             setSensorData(prev => ({ ...prev, temperature: tempValue }));
@@ -261,7 +282,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           break;
         }
           
-        case 'cadena-frio/humedad': {
+        case humedadTopic: {
           const humValue = parseFloat(messageStr);
           if (!isNaN(humValue)) {
             setSensorData(prev => ({ ...prev, humidity: humValue }));
@@ -269,7 +290,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           break;
         }
           
-        case 'cadena-frio/estado':
+        case estadoTopic:
           // Intentar parsear JSON si es posible
           try {
             const data = JSON.parse(messageStr);
@@ -391,7 +412,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           }
           break;
           
-        case 'cadena-frio/alertas':
+        case import.meta.env.VITE_MQTT_TOPIC_PREFIX ? `${import.meta.env.VITE_MQTT_TOPIC_PREFIX}/alertas` : 'cadena-frio/alertas':
           addLog('warning', `ALERTA: ${messageStr}`);
           break;
       }
@@ -407,10 +428,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       if (client) {
         // Desuscribirse de todos los tópicos antes de cerrar
         const topics = [
-          'cadena-frio/temperatura',
-          'cadena-frio/humedad',
-          'cadena-frio/estado',
-          'cadena-frio/alertas'
+          import.meta.env.VITE_MQTT_TOPIC_TEMPERATURA || 'cadena-frio/temperatura',
+          import.meta.env.VITE_MQTT_TOPIC_HUMEDAD || 'cadena-frio/humedad',
+          import.meta.env.VITE_MQTT_TOPIC_ESTADO || 'cadena-frio/estado',
+          import.meta.env.VITE_MQTT_TOPIC_PREFIX ? `${import.meta.env.VITE_MQTT_TOPIC_PREFIX}/alertas` : 'cadena-frio/alertas'
         ];
         
         // Desuscribirse de cada tópico
@@ -421,7 +442,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         // Publicar mensaje de desconexión si es posible
         if (connectionStatus === 'connected') {
           try {
-            client.publish('cadena-frio/control/sistema', 'DISCONNECT', { qos: 0 }, () => {
+            const disconnectTopic = import.meta.env.VITE_MQTT_TOPIC_CONTROL_SISTEMA || 'cadena-frio/control/sistema';
+        client.publish(disconnectTopic, 'DISCONNECT', { qos: 0 }, () => {
               // Cerrar la conexión después de enviar el mensaje de desconexión
               client.end(true, () => {
                 console.log('Conexión MQTT cerrada correctamente');
@@ -439,13 +461,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     };
   }, [fetchThingSpeakData]);
 
-  // Obtener datos de ThingSpeak cada 2 minutos
-  useEffect(() => {
+  // Obtener datos de ThingSpeak cada intervalo configurado
     fetchThingSpeakData(); // Obtener datos iniciales
     
+    const updateInterval = parseInt(import.meta.env.VITE_THINGSPEAK_UPDATE_INTERVAL) || 120000;
     const thingSpeakInterval = setInterval(() => {
       fetchThingSpeakData();
-    }, 120000); // 2 minutos
+    }, updateInterval);
 
     return () => clearInterval(thingSpeakInterval);
   }, []);
@@ -500,23 +522,27 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const handleRelayToggle = () => {
     const newState = !relayState;
     setRelayState(newState);
-    publishCommand('cadena-frio/control/relay', newState ? 'ON' : 'OFF');
+    const topic = import.meta.env.VITE_MQTT_TOPIC_PREFIX ? `${import.meta.env.VITE_MQTT_TOPIC_PREFIX}/control/relay` : 'cadena-frio/control/relay';
+    publishCommand(topic, newState ? 'ON' : 'OFF');
   };
 
   const handleBuzzerToggle = () => {
     const newState = !buzzerState;
     setBuzzerState(newState);
-    publishCommand('cadena-frio/control/buzzer', newState ? 'ON' : 'OFF');
+    const topic = import.meta.env.VITE_MQTT_TOPIC_PREFIX ? `${import.meta.env.VITE_MQTT_TOPIC_PREFIX}/control/buzzer` : 'cadena-frio/control/buzzer';
+    publishCommand(topic, newState ? 'ON' : 'OFF');
   };
 
   const handleBuzzerBeep = () => {
-    publishCommand('cadena-frio/control/buzzer', 'BEEP');
+    const topic = import.meta.env.VITE_MQTT_TOPIC_PREFIX ? `${import.meta.env.VITE_MQTT_TOPIC_PREFIX}/control/buzzer` : 'cadena-frio/control/buzzer';
+    publishCommand(topic, 'BEEP');
   };
 
   const handleLedToggle = () => {
     const newState = !ledState;
     setLedState(newState);
-    publishCommand('cadena-frio/control/led', newState ? 'ON' : 'OFF');
+    const topic = import.meta.env.VITE_MQTT_TOPIC_PREFIX ? `${import.meta.env.VITE_MQTT_TOPIC_PREFIX}/control/led` : 'cadena-frio/control/led';
+    publishCommand(topic, newState ? 'ON' : 'OFF');
   };
 
 
@@ -532,7 +558,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     }
     
     const command = `MIN:${minTemp},MAX:${maxTemp}`;
-    publishCommand('cadena-frio/control/limites', command);
+    const topic = import.meta.env.VITE_MQTT_TOPIC_PREFIX ? `${import.meta.env.VITE_MQTT_TOPIC_PREFIX}/control/limites` : 'cadena-frio/control/limites';
+    publishCommand(topic, command);
     
     // Actualizar los valores en el estado local para mostrarlos inmediatamente
     setSensorData(prev => ({
@@ -542,8 +569,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     }));
     
     // Guardar los valores en localStorage para persistencia
-    localStorage.setItem('cadena-frio-temp-min', minTemp.toString());
-    localStorage.setItem('cadena-frio-temp-max', maxTemp.toString());
+    const storagePrefix = import.meta.env.VITE_MQTT_TOPIC_PREFIX || 'cadena-frio';
+    localStorage.setItem(`${storagePrefix}-temp-min`, minTemp.toString());
+    localStorage.setItem(`${storagePrefix}-temp-max`, maxTemp.toString());
     
     // Mostrar mensaje de confirmación
     addLog('success', `Límites de temperatura actualizados y guardados: Min ${minTemp}°C, Max ${maxTemp}°C`);
@@ -551,13 +579,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
   const handleSystemToggle = () => {
     const command = sensorData.systemEnabled ? 'DISABLE' : 'ENABLE';
-    publishCommand('cadena-frio/control/sistema', command);
+    const topic = import.meta.env.VITE_MQTT_TOPIC_CONTROL_SISTEMA || 'cadena-frio/control/sistema';
+    publishCommand(topic, command);
   };
 
 
   
   const handleDisplayReset = () => {
-    publishCommand('cadena-frio/control/sistema', 'DISPLAY_RESET');
+    const topic = import.meta.env.VITE_MQTT_TOPIC_CONTROL_SISTEMA || 'cadena-frio/control/sistema';
+    publishCommand(topic, 'DISPLAY_RESET');
     addLog('info', 'Comando de reinicio del display enviado');
   };
 
@@ -993,7 +1023,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                     Canal ThingSpeak
                   </h3>
                   <p className="text-green-600 text-sm">
-                    Canal ID: 3005089<br />
+                    Canal ID: {import.meta.env.VITE_THINGSPEAK_CHANNEL_ID || 'No configurado'}<br />
                     Frecuencia: ~1 minuto
                   </p>
                 </div>

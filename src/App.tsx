@@ -7,8 +7,11 @@ function App() {
   const [loginError, setLoginError] = useState('');
 
   const handleLogin = (username: string, password: string) => {
-    // Validar credenciales
-    if (username === 'admin' && password === 'password') {
+    // Validar credenciales desde variables de entorno
+    const adminUsername = import.meta.env.VITE_ADMIN_USERNAME || 'admin';
+    const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'password';
+    
+    if (username === adminUsername && password === adminPassword) {
       setIsAuthenticated(true);
       setLoginError('');
     } else {
